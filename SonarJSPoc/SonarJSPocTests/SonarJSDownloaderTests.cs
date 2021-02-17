@@ -13,6 +13,8 @@ namespace SonarJSPocTests
         {
             var downloader = new SonarJsConfig.SonarJSDownloader();
             var url = "https://binaries.sonarsource.com/Distribution/sonar-javascript-plugin/sonar-javascript-plugin-6.2.0.12043.jar";
+            url = "https://binaries.sonarsource.com/Distribution/sonar-javascript-plugin/sonar-javascript-plugin-7.2.0.14938.jar";
+
             var outputDir = downloader.Download(url, new ConsoleLogger());
 
             outputDir.Should().NotBeNullOrEmpty();
