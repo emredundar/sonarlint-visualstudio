@@ -1,4 +1,6 @@
-﻿using System.Threading.Tasks;
+﻿using System.Linq;
+using System.Threading.Tasks;
+using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SonarJsConfig;
 
@@ -10,15 +12,13 @@ namespace SonarJSPocTests
         [TestMethod]
         public async Task Wip()
         {
-            var wrapper = new EslintBridgeWrapper(new ConsoleLogger());
+            using var wrapper = new EslintBridgeWrapper(new ConsoleLogger());
 
             await wrapper.Start();
+     
+            var results = await wrapper.AnalyzeJS("", "//TODO\n");
 
-
-            
-
-            await wrapper.Stop();
-        
+            results.Count().Should().Be(1);
         }
     }
 }

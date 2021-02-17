@@ -101,7 +101,7 @@ namespace SonarJsConfig
 
         public void Stop()
         {
-            if (process.HasExited)
+            if (process == null || process.HasExited)
             {
                 logger.LogMessage("Node process has already terminated");
                 return;

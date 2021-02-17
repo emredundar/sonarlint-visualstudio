@@ -1,9 +1,13 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
+using SonarJsConfig.Data;
 
 namespace SonarJsConfig
 {
@@ -11,12 +15,22 @@ namespace SonarJsConfig
     {
         Task Start();
         Task Stop();
+        Task<IEnumerable<EslintBridgeIssue>> AnalyzeJS(string filePath, string fileContent);
+        Task<IEnumerable<EslintBridgeIssue>> AnalyzeTS(string filePath, string fileContent);
     }
 
-    public class EslintBridgeWrapper : IEslintBridge, IDisposable
+    public sealed class EslintBridgeWrapper : IEslintBridge, IDisposable
     {
-//        private const string DownloadUrl = "https://binaries.sonarsource.com/Distribution/sonar-javascript-plugin/sonar-javascript-plugin-6.2.0.12043.jar";
-        private const string DownloadUrl = "https://binaries.sonarsource.com/Distribution/sonar-javascript-plugin/sonar-javascript-plugin-7.2.0.14938.jar";
+        private static class Endpoints
+        {
+            public const string AnalyzeJs = "analyze-js";
+            public const string Close = "close";
+        }
+
+        private static readonly IEnumerable<EslintBridgeIssue> EmptyIssues = Array.Empty<EslintBridgeIssue>();
+
+        private const string DownloadUrl = "https://binaries.sonarsource.com/Distribution/sonar-javascript-plugin/sonar-javascript-plugin-6.2.0.12043.jar";
+//        private const string DownloadUrl = "https://binaries.sonarsource.com/Distribution/sonar-javascript-plugin/sonar-javascript-plugin-7.2.0.14938.jar";
 
         private readonly ILogger logger;
         private readonly SonarJSDownloader downloader;
@@ -25,7 +39,7 @@ namespace SonarJsConfig
 
         private int port;
 
-        private HttpClient httpClient;
+        private readonly HttpClient httpClient;
 
         public EslintBridgeWrapper(ILogger logger)
         {
@@ -46,8 +60,36 @@ namespace SonarJsConfig
                 return;
             }
 
-            await CallNodeServerAsync("close", null);
+            await CallNodeServerAsync(Endpoints.Close, null);
             serverProcess.Stop();
+        }
+
+        public async Task<IEnumerable<EslintBridgeIssue>> AnalyzeJS(string filePath, string fileContent) =>
+            await Analyze(filePath, fileContent, EslintRulesProvider.GetJavaScriptRuleKeys());
+
+        public async Task<IEnumerable<EslintBridgeIssue>> AnalyzeTS(string filePath, string fileContent) =>
+            await Analyze(filePath, fileContent, EslintRulesProvider.GetTypeScriptRuleKeys());
+
+        private async Task<IEnumerable<EslintBridgeIssue>> Analyze(string filePath, string fileContent, IEnumerable<string> ruleKeys)
+        {
+            var analysisRequest = CreateRequest(filePath, fileContent, ruleKeys);
+
+            var responseString = await CallNodeServerAsync(Endpoints.AnalyzeJs, analysisRequest);
+
+            if (responseString == null)
+            {
+                return EmptyIssues;
+            }
+
+            var eslintBridgeResponse = JsonConvert.DeserializeObject<EslintBridgeResponse>(responseString);
+
+            if (eslintBridgeResponse.EslintBridgeParsingError != null)
+            {
+                LogParsingError(filePath, eslintBridgeResponse.EslintBridgeParsingError);
+                return EmptyIssues;
+            }
+
+            return eslintBridgeResponse.Issues;
         }
 
         private async Task<bool> EnsureServerStarted()
@@ -130,10 +172,46 @@ namespace SonarJsConfig
                 return null;
             }
 
-            var responseString = response.Content.ReadAsStringAsync().Result;
+            var responseString = await response.Content.ReadAsStringAsync();
             logger.LogMessage("Eslint bridge response: " + responseString);
 
             return responseString;
+        }
+
+        private void LogParsingError(string path, EslintBridgeParsingError parsingError)
+        {
+            //https://github.com/SonarSource/SonarJS/blob/1916267988093cb5eb1d0b3d74bb5db5c0dbedec/sonar-javascript-plugin/src/main/java/org/sonar/plugins/javascript/eslint/AbstractEslintSensor.java#L134
+            if (parsingError.ErrorCode == "MISSING_TYPESCRIPT")
+            {
+                logger.LogMessage("TypeScript dependency was not found and it is required for analysis.");
+            }
+            else if (parsingError.ErrorCode == "UNSUPPORTED_TYPESCRIPT")
+            {
+                logger.LogMessage(parsingError.Message);
+                logger.LogMessage("If it's not possible to upgrade version of TypeScript used by the project, consider installing supported TypeScript version just for the time of analysis");
+            }
+            else
+            {
+                logger.LogMessage($"Failed to parse file [{path}] at line {parsingError.Line}: {parsingError.Message}");
+            }
+        }
+
+        private string CreateRequest(string filePath, string fileContent, IEnumerable<string> ruleKeys)
+        {
+            // NOTE: the rule keys we pass to the eslint-bridge are not the Sonar "Sxxxx" keys.
+            // Instead, there are more user-friendly keys.
+            // We will need to translate between the "Sxxx" and the "friendly" keys.
+            // The "friendly" keys are at https://github.com/SonarSource/eslint-plugin-sonarjs/blob/master/src/index.ts
+            var eslintRequest = new EslintBridgeRequest
+            {
+                FilePath = filePath,
+                FileContent = fileContent,
+                Rules = ruleKeys.Select(x => new EsLintRuleConfig { Key = x, Configurations = Array.Empty<string>() })
+                    .ToArray()
+            };
+
+            var serializedRequest = JsonConvert.SerializeObject(eslintRequest, Formatting.Indented);
+            return serializedRequest;
         }
 
         public void Dispose()
