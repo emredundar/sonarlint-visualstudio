@@ -77,6 +77,9 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
                 return;
             }
 
+            eslintBridgeWrapper.InitLinter();
+
+
             var language = detectedLanguages.Contains(AnalysisLanguage.Typescript)
                 ? AnalysisLanguage.Typescript : AnalysisLanguage.Javascript;
 
