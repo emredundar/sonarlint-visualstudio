@@ -6,15 +6,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="Rules\ExcludedRules.txt" />
-    <None Remove="Rules\js-rules.txt" />
-    <None Remove="Rules\ts-rules.txt" />
+    <None Remove="Resources\ExcludedRules.txt" />
+    <None Remove="Resources\globals.json" />
+    <None Remove="Resources\js-rules.txt" />
+    <None Remove="Resources\ts-rules.txt" />
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Rules\ExcludedRules.txt" />
-    <EmbeddedResource Include="Rules\js-rules.txt" />
-    <EmbeddedResource Include="Rules\ts-rules.txt" />
+    <EmbeddedResource Include="Resources\ExcludedRules.txt" />
+    <EmbeddedResource Include="Resources\globals.json" />
+    <EmbeddedResource Include="Resources\js-rules.txt" />
+    <EmbeddedResource Include="Resources\ts-rules.txt" />
   </ItemGroup>
 
   <ItemGroup>
