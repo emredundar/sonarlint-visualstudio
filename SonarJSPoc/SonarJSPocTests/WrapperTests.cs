@@ -14,8 +14,10 @@ namespace SonarJSPocTests
         {
             using var wrapper = new EslintBridgeWrapper(new ConsoleLogger());
 
-            await wrapper.Start();
-     
+            var started = await wrapper.Start();
+
+            started.Should().BeTrue();
+
             var results = await wrapper.AnalyzeJS("", "//TODO\n");
 
             results.Count().Should().Be(1);

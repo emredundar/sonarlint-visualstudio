@@ -13,7 +13,7 @@ namespace SonarJsConfig
 {
     public interface IEslintBridge
     {
-        Task Start();
+        Task<bool> Start();
         Task Stop();
         Task<IEnumerable<EslintBridgeIssue>> AnalyzeJS(string filePath, string fileContent);
         Task<IEnumerable<EslintBridgeIssue>> AnalyzeTS(string filePath, string fileContent);
@@ -24,6 +24,7 @@ namespace SonarJsConfig
         private static class Endpoints
         {
             public const string AnalyzeJs = "analyze-js";
+            public const string AnalyzeTs = "analyze-ts";
             public const string Close = "close";
         }
 
@@ -48,9 +49,9 @@ namespace SonarJsConfig
             httpClient = new HttpClient();
         }
 
-        public async Task Start()
+        public async Task<bool> Start()
         {
-            await EnsureServerStarted();
+            return await EnsureServerStarted();
         }
 
         public async Task Stop()
@@ -65,16 +66,16 @@ namespace SonarJsConfig
         }
 
         public async Task<IEnumerable<EslintBridgeIssue>> AnalyzeJS(string filePath, string fileContent) =>
-            await Analyze(filePath, fileContent, EslintRulesProvider.GetJavaScriptRuleKeys());
+            await Analyze(filePath, fileContent, Endpoints.AnalyzeJs, EslintRulesProvider.GetJavaScriptRuleKeys());
 
         public async Task<IEnumerable<EslintBridgeIssue>> AnalyzeTS(string filePath, string fileContent) =>
-            await Analyze(filePath, fileContent, EslintRulesProvider.GetTypeScriptRuleKeys());
+            await Analyze(filePath, fileContent, Endpoints.AnalyzeTs, EslintRulesProvider.GetTypeScriptRuleKeys());
 
-        private async Task<IEnumerable<EslintBridgeIssue>> Analyze(string filePath, string fileContent, IEnumerable<string> ruleKeys)
+        private async Task<IEnumerable<EslintBridgeIssue>> Analyze(string filePath, string fileContent, string endpoint, IEnumerable<string> ruleKeys)
         {
             var analysisRequest = CreateRequest(filePath, fileContent, ruleKeys);
 
-            var responseString = await CallNodeServerAsync(Endpoints.AnalyzeJs, analysisRequest);
+            var responseString = await CallNodeServerAsync(endpoint, analysisRequest);
 
             if (responseString == null)
             {

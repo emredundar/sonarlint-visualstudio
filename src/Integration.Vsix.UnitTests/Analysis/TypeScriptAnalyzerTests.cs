@@ -16,7 +16,7 @@ namespace SonarLint.VisualStudio.Integration.UnitTests.Analysis
         private TestLogger logger;
 
         //private const string ScriptLocation = "C:\\Users\\Rita\\Desktop\\eslint-bridge\\bin\\server";
-        private const string ScriptLocation = @"C:\Users\jdcp\AppData\Local\SLVS_Internal_Build\SonarJS\sonar-javascript-plugin-6.2.0.12043\eslint-bridge\package\bin\server";
+        //private const string ScriptLocation = @"C:\Users\jdcp\AppData\Local\SLVS_Internal_Build\SonarJS\sonar-javascript-plugin-6.2.0.12043\eslint-bridge\package\bin\server";
 
         public TestContext TestContext { get; set; }
 
@@ -143,7 +143,7 @@ function foo(a) {  // Noncompliant
         {
             var consumer = new Mock<IIssueConsumer>();
 
-            var analyzer = new TypescriptAnalyzer(logger, 0, ScriptLocation);
+            var analyzer = new TypescriptAnalyzer(logger);
             analyzer.ExecuteAnalysis(path, "", new[] {AnalysisLanguage.Typescript}, consumer.Object, projectItem);
 
             return consumer;

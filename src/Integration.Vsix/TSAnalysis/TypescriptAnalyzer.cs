@@ -2,13 +2,9 @@
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Net.Http;
-using System.Text;
 using EnvDTE;
-using Microsoft.VisualStudio;
-using Newtonsoft.Json;
+using Microsoft.VisualStudio.Shell;
 using SonarJsConfig;
 using SonarJsConfig.Data;
 using Sonarlint;
@@ -35,23 +31,14 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
     public partial class TypescriptAnalyzer : IAnalyzer
     {
         private readonly ILogger logger;
-        private int port;
-        private readonly string serverStartupScriptLocation;
-
-        private EslintBridgeServerStarter serverStarter;
+        private readonly EslintBridgeWrapper eslintBridgeWrapper;
 
         [ImportingConstructor]
-        public TypescriptAnalyzer(ILogger logger) 
-            :this(logger, 0, null)
+        public TypescriptAnalyzer(ILogger logger)
         {
+            this.logger = logger;
+            eslintBridgeWrapper = new EslintBridgeWrapper(new LoggerAdapter(logger));
         }
-
-        internal TypescriptAnalyzer(ILogger logger, int port, string serverStartupScriptLocation)
-        {
-            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            this.port = port;
-            this.serverStartupScriptLocation = serverStartupScriptLocation;
-    }
 
         public bool IsAnalysisSupported(IEnumerable<AnalysisLanguage> languages)
         {
@@ -73,7 +60,19 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
                 throw new ArgumentOutOfRangeException($"Unsupported language");
             }
 
-            if (!EnsureServerStarted())
+            ThreadHelper.JoinableTaskFactory.RunAsync(() => InternalExecuteAnalysisAsync(path, consumer, detectedLanguages));
+        }
+
+        private async System.Threading.Tasks.Task InternalExecuteAnalysisAsync(string path,
+            IIssueConsumer consumer,
+            IEnumerable<AnalysisLanguage> detectedLanguages)
+        {
+            // See https://github.com/microsoft/vs-threading/blob/master/doc/cookbook_vs.md for
+            // info on VS threading.
+            await System.Threading.Tasks.Task.Yield(); // Get off the caller's callstack
+
+            var serverStarted = await eslintBridgeWrapper.Start();
+            if (!serverStarted)
             {
                 return;
             }
@@ -83,35 +82,24 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
 
             var fileContent = string.Empty; //GetFileContent(projectItem);
 
+            IEnumerable<EslintBridgeIssue> esLintBridgeIssues;
+            if (language == AnalysisLanguage.Typescript)
+            {
+                esLintBridgeIssues = await eslintBridgeWrapper.AnalyzeTS(path, fileContent);
+            }
+            else
+            {
+                esLintBridgeIssues = await eslintBridgeWrapper.AnalyzeJS(path, fileContent);
+            }
 
-            var serializedRequest = this.CreateRequest(path, fileContent, language);
-
-            // If the server can't find typescript then response will contain "MISSING_TYPESCRIPT".
-            // To fix this, either:
-            // 1) add the "typescript" under the "node_modules" folder of the eslint-bridge server, or
-            // 2) set the environment variable NODE_PATH to the a "node_modules" folder that contains "typescript".
-            //      NB the variable must be set before launching the server.
-            var serverEndpoint = language == AnalysisLanguage.Typescript ?
-                "analyze-ts" : "analyze-js";
-
-            var responseString = CallEslintBridge(serverEndpoint, serializedRequest);
-
-            if (responseString == null)
+            if (!esLintBridgeIssues.Any())
             {
                 return;
             }
 
             var timer = Stopwatch.StartNew();
 
-            var eslintBridgeResponse = JsonConvert.DeserializeObject<EslintBridgeResponse>(responseString);
-
-            if (eslintBridgeResponse.EslintBridgeParsingError != null)
-            {
-                LogParsingError(path, eslintBridgeResponse.EslintBridgeParsingError);
-                return;
-            }
-
-            var analysisIssues = eslintBridgeResponse.Issues.Select(x =>
+            var analysisIssues = esLintBridgeIssues.Select(x =>
                 new Issue
                 {
                     EndLine = x.EndLine ?? 0,
@@ -128,93 +116,6 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
             logger.WriteLine($"Time for consumer to process issues: {timer.ElapsedMilliseconds}ms");
         }
 
-        private string CallEslintBridge(string serverEndpoint, string serializedRequest)
-        {
-            HttpResponseMessage response = null;
-            try
-            {
-                using var httpClient = new System.Net.Http.HttpClient();
-
-                var timer = Stopwatch.StartNew();
-
-                response = httpClient.PostAsync($"http://localhost:{port}/{serverEndpoint}",
-                        new StringContent(serializedRequest, Encoding.UTF8, "application/json"))
-                    .Result;
-
-                timer.Stop();
-                logger.WriteLine($"VS->eslint-bridge roundtrip: {timer.ElapsedMilliseconds}ms");
-                
-            }
-            catch (AggregateException ex)
-            {
-                logger.WriteLine($"Error connecting to the eslint-bridge server. Please ensure the server is running on port {port}");
-                logger.WriteLine(ex.ToString());
-                foreach (var inner in ex.InnerExceptions)
-                {
-                    logger.WriteLine("   -------------------------------");
-                    logger.WriteLine(inner.ToString());
-                }
-                return null;
-            }
-
-            var responseString = response.Content.ReadAsStringAsync().Result;
-            logger.WriteLine("Eslint bridge response: " + responseString);
-
-            return responseString;
-        }
-
-
-        private bool EnsureServerStarted()
-        {
-            // Handle the server having stopped unexpectedly
-            if (serverStarter != null)
-            {
-                if (serverStarter.IsRunning())
-                {
-                    return true;
-                }
-
-                logger.WriteLine("Server process has exited. Cleaning up and restarting...");
-                serverStarter.Dispose();
-                serverStarter = null;
-            }
-
-            try
-            {
-                var scriptFilePath = EnsurePluginDownloaded();
-                if (scriptFilePath == null)
-                {
-                    return false;
-                }
-
-                serverStarter = new EslintBridgeServerStarter(logger, scriptFilePath, port);
-                this.port = serverStarter.Start().Result;
-            }
-            catch(Exception ex) when (!ErrorHandler.IsCriticalException(ex))
-            {
-                serverStarter.Dispose();
-                logger.WriteLine($"ERROR: Failed to start the server: {ex}");
-            }
-
-            return true;
-        }
-
-        private string EnsurePluginDownloaded()
-        {
-            var jarRootDirectory = EnsureSonarJSDownloaded();
-
-            var scriptFilePath = serverStartupScriptLocation ??
-                System.IO.Path.Combine(jarRootDirectory, SonarJsConfig.SonarJSDownloader.EslintBridgeFolderName, "package", "bin", "server");
-
-            if (!File.Exists(scriptFilePath))
-            {
-                logger.WriteLine($"ERROR: eslint-bridge startup script file does not exist: {scriptFilePath}");
-                return null;
-            }
-
-            return scriptFilePath;
-        }
-
         private string GetFileContent(ProjectItem projectItem)
         {
              var fileContent = "";
@@ -225,56 +126,6 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
                 fileContent = editPoint.GetText(textDocument.EndPoint);
             }
             return fileContent;
-        }
-
-        private string CreateRequest(string filePath, string fileContent, AnalysisLanguage language)
-        {
-            var ruleKeys = language == AnalysisLanguage.Javascript
-                ? EslintRulesProvider.GetJavaScriptRuleKeys()
-                : EslintRulesProvider.GetTypeScriptRuleKeys();
-
-            // NOTE: the rule keys we pass to the eslint-bridge are not the Sonar "Sxxxx" keys.
-            // Instead, there are more user-friendly keys.
-            // We will need to translate between the "Sxxx" and the "friendly" keys.
-            // The "friendly" keys are at https://github.com/SonarSource/eslint-plugin-sonarjs/blob/master/src/index.ts
-            var eslintRequest = new EslintBridgeRequest
-            {
-                FilePath = filePath,
-                FileContent = fileContent,
-                Rules = ruleKeys.Select(x => new EsLintRuleConfig { Key = x, Configurations = Array.Empty<string>() })
-                    .ToArray()
-            };
-
-            var serializedRequest = JsonConvert.SerializeObject(eslintRequest, Formatting.Indented);
-            return serializedRequest;
-        }
-
-        private void LogParsingError(string path, EslintBridgeParsingError parsingError)
-        {
-            //https://github.com/SonarSource/SonarJS/blob/1916267988093cb5eb1d0b3d74bb5db5c0dbedec/sonar-javascript-plugin/src/main/java/org/sonar/plugins/javascript/eslint/AbstractEslintSensor.java#L134
-            if (parsingError.ErrorCode == "MISSING_TYPESCRIPT")
-            {
-                logger.WriteLine("TypeScript dependency was not found and it is required for analysis.");
-            } 
-            else if (parsingError.ErrorCode == "UNSUPPORTED_TYPESCRIPT")
-            {
-                logger.WriteLine(parsingError.Message);
-                logger.WriteLine("If it's not possible to upgrade version of TypeScript used by the project, consider installing supported TypeScript version just for the time of analysis");
-            }
-            else
-            {
-                logger.WriteLine($"Failed to parse file [{path}] at line {parsingError.Line}: {parsingError.Message}");
-            }
-        }
-
-        private string EnsureSonarJSDownloaded()
-        {
-
-            var downloader = new SonarJsConfig.SonarJSDownloader();
-            var url = "https://binaries.sonarsource.com/Distribution/sonar-javascript-plugin/sonar-javascript-plugin-6.2.0.12043.jar";
-            var outputDir = downloader.Download(url, new LoggerAdapter(logger));
-
-            return outputDir;
         }
 
         private class LoggerAdapter : SonarJsConfig.ILogger
