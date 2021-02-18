@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 
 namespace SonarJsConfig.Data
 {
-    public class EslintBridgeRequest
+    public class EslintBridgeAnalysisRequest
     {
         [JsonProperty("filePath")]
         public string FilePath { get; set; }

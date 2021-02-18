@@ -18,6 +18,8 @@ namespace SonarJSPocTests
 
             started.Should().BeTrue();
 
+            await wrapper.InitLinter();
+
             var results = await wrapper.AnalyzeJS("", "//TODO\n");
 
             results.Count().Should().Be(1);

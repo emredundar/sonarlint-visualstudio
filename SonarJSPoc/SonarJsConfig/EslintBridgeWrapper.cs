@@ -15,6 +15,7 @@ namespace SonarJsConfig
     {
         Task<bool> Start();
         Task Stop();
+        Task InitLinter(); // TODO - parameterise the initialization
         Task<IEnumerable<EslintBridgeIssue>> AnalyzeJS(string filePath, string fileContent);
         Task<IEnumerable<EslintBridgeIssue>> AnalyzeTS(string filePath, string fileContent);
     }
@@ -23,6 +24,7 @@ namespace SonarJsConfig
     {
         private static class Endpoints
         {
+            public const string InitLinter = "init-linter";
             public const string AnalyzeJs = "analyze-js";
             public const string AnalyzeTs = "analyze-ts";
             public const string Close = "close";
@@ -30,8 +32,8 @@ namespace SonarJsConfig
 
         private static readonly IEnumerable<EslintBridgeIssue> EmptyIssues = Array.Empty<EslintBridgeIssue>();
 
-        private const string DownloadUrl = "https://binaries.sonarsource.com/Distribution/sonar-javascript-plugin/sonar-javascript-plugin-6.2.0.12043.jar";
-//        private const string DownloadUrl = "https://binaries.sonarsource.com/Distribution/sonar-javascript-plugin/sonar-javascript-plugin-7.2.0.14938.jar";
+        //private const string DownloadUrl = "https://binaries.sonarsource.com/Distribution/sonar-javascript-plugin/sonar-javascript-plugin-6.2.0.12043.jar";
+        private const string DownloadUrl = "https://binaries.sonarsource.com/Distribution/sonar-javascript-plugin/sonar-javascript-plugin-7.2.0.14938.jar";
 
         private readonly ILogger logger;
         private readonly SonarJSDownloader downloader;
@@ -65,6 +67,30 @@ namespace SonarJsConfig
             serverProcess.Stop();
         }
 
+        public async Task InitLinter()
+        {
+            // TODO - pick correct rules
+            var jsRuleKeys = EslintRulesProvider.GetJavaScriptRuleKeys();
+            var jsRules = jsRuleKeys.Select(x => new EsLintRuleConfig { Key = x, Configurations = Array.Empty<string>() })
+                .ToArray();
+
+            // TODO - pick correct rules
+            var tsRuleKeys = EslintRulesProvider.GetTypeScriptRuleKeys();
+            var tsRules = jsRuleKeys.Select(x => new EsLintRuleConfig { Key = x, Configurations = Array.Empty<string>() })
+                .ToArray();
+
+
+            var request = new InitLinterRequest
+            {
+                // TODO: use user settings for environments and globals
+                Environments = GlobalVariableNames.DefaultEnvironments,
+                globals = GlobalVariableNames.DefaultGlobals,
+                Rules = jsRules // tsRules
+            };
+
+            var result = await CallNodeServerAsync(Endpoints.InitLinter, request);
+        }
+
         public async Task<IEnumerable<EslintBridgeIssue>> AnalyzeJS(string filePath, string fileContent) =>
             await Analyze(filePath, fileContent, Endpoints.AnalyzeJs, EslintRulesProvider.GetJavaScriptRuleKeys());
 
@@ -73,7 +99,7 @@ namespace SonarJsConfig
 
         private async Task<IEnumerable<EslintBridgeIssue>> Analyze(string filePath, string fileContent, string endpoint, IEnumerable<string> ruleKeys)
         {
-            var analysisRequest = CreateRequest(filePath, fileContent, ruleKeys);
+            var analysisRequest = CreateAnalysisRequest(filePath, fileContent, ruleKeys);
 
             var responseString = await CallNodeServerAsync(endpoint, analysisRequest);
 
@@ -146,8 +172,11 @@ namespace SonarJsConfig
         private string EnsureSonarJSDownloaded() =>
             downloader.Download(DownloadUrl, logger);
 
-        private async Task<string> CallNodeServerAsync(string serverEndpoint, string serializedRequest)
+        private async Task<string> CallNodeServerAsync(string serverEndpoint, object request)
         {
+            var serializedRequest = 
+                request == null ? "" : JsonConvert.SerializeObject(request, Formatting.Indented);
+
             HttpResponseMessage response;
             try
             {
@@ -197,13 +226,13 @@ namespace SonarJsConfig
             }
         }
 
-        private string CreateRequest(string filePath, string fileContent, IEnumerable<string> ruleKeys)
+        private EslintBridgeAnalysisRequest CreateAnalysisRequest(string filePath, string fileContent, IEnumerable<string> ruleKeys)
         {
             // NOTE: the rule keys we pass to the eslint-bridge are not the Sonar "Sxxxx" keys.
             // Instead, there are more user-friendly keys.
             // We will need to translate between the "Sxxx" and the "friendly" keys.
             // The "friendly" keys are at https://github.com/SonarSource/eslint-plugin-sonarjs/blob/master/src/index.ts
-            var eslintRequest = new EslintBridgeRequest
+            var eslintRequest = new EslintBridgeAnalysisRequest
             {
                 FilePath = filePath,
                 FileContent = fileContent,
@@ -211,8 +240,7 @@ namespace SonarJsConfig
                     .ToArray()
             };
 
-            var serializedRequest = JsonConvert.SerializeObject(eslintRequest, Formatting.Indented);
-            return serializedRequest;
+            return eslintRequest;
         }
 
         public void Dispose()
