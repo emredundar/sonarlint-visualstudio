@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using SonarJsConfig.Config;
 using SonarJsConfig.Data;
 
 namespace SonarJsConfig
@@ -79,12 +80,12 @@ namespace SonarJsConfig
             var tsRules = jsRuleKeys.Select(x => new EsLintRuleConfig { Key = x, Configurations = Array.Empty<string>() })
                 .ToArray();
 
+            var config = Configuration.CreateFromEnvVars();
 
             var request = new InitLinterRequest
             {
-                // TODO: use user settings for environments and globals
-                Environments = GlobalVariableNames.DefaultEnvironments,
-                globals = GlobalVariableNames.DefaultGlobals,
+                Environments = config.getStringArray(GlobalVariableNames.ENVIRONMENTS_PROPERTY_KEY),
+                globals = config.getStringArray(GlobalVariableNames.ENVIRONMENTS_PROPERTY_KEY),
                 Rules = jsRules // tsRules
             };
 
