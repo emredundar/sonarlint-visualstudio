@@ -1,10 +1,12 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SonarJsConfig;
+using SonarJsConfig.ESLint.Data;
 
 namespace SonarJSPocTests
 {
@@ -18,19 +20,23 @@ namespace SonarJSPocTests
 
             var started = await wrapper.Start();
 
+            var ruleKeys = EslintRulesProvider.GetTypeScriptRuleKeys();
+            var rules = ruleKeys.Select(x => new Rule { Key = x, Configurations = Array.Empty<string>() })
+                .ToArray();
+
             started.Should().BeTrue();
-            await wrapper.InitLinter();
+            await wrapper.InitLinter(rules);
 
             await wrapper.NewTSConfig();
 
             // Supply the tsconfig file
             var tsConfigFilePath = GetResourceFilePath("Resources", "tsconfig.json");
-            await wrapper.TSConfigFiles(tsConfigFilePath);
+            var configResposne = await wrapper.TSConfigFiles(tsConfigFilePath);
 
             // Analyze
-            var results = await wrapper.AnalyzeJS("", "//TODO\n");
+            var results = await wrapper.AnalyzeJS("", "qwdqwdqd//TODO\n", ignoreHeaderComments: false);
 
-            results.Count().Should().Be(1);
+            results.Issues.Count().Should().Be(1);
         }
 
         private string GetResourceFilePath(params string[] parts)

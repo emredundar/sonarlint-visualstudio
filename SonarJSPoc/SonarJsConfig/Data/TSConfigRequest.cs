@@ -20,6 +20,6 @@ namespace SonarJsConfig.ESLint.Data
         public string Error { get; set; }
 
         [JsonProperty("errorCode")]
-        public ParsingErrorCode errorCode { get; set; }
+        public ParsingErrorCode ErrorCode { get; set; }
     }
 }

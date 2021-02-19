@@ -16,11 +16,11 @@ namespace SonarJsConfig
     {
         Task<bool> Start();
         Task Stop();
-        Task InitLinter(); // TODO - parameterise the initialization
-        Task TSConfigFiles(string configFilePath);
+        Task InitLinter(IEnumerable<Rule> rules);
+        Task<TSConfigResponse> TSConfigFiles(string configFilePath);
         Task NewTSConfig();
-        Task<IEnumerable<Issue>> AnalyzeJS(string filePath, string fileContent);
-        Task<IEnumerable<Issue>> AnalyzeTS(string filePath, string fileContent);
+        Task<AnalysisResponse> AnalyzeJS(string filePath, string fileContent, bool ignoreHeaderComments);
+        Task<AnalysisResponse> AnalyzeTS(string filePath, string fileContent, bool ignoreHeaderComments);
     }
 
     public sealed class EslintBridgeWrapper : IEslintBridge, IDisposable
@@ -71,9 +71,18 @@ namespace SonarJsConfig
             serverProcess.Stop();
         }
 
-        public async Task TSConfigFiles(string configFilePath)
+        public async Task<TSConfigResponse> TSConfigFiles(string configFilePath)
         {
-            await CallNodeServerAsync(Endpoints.TSConfigFiles, new TSConfigRequest { TSConfigAbsoluteFilePath = configFilePath });
+            var responseString = await CallNodeServerAsync(Endpoints.TSConfigFiles, new TSConfigRequest { TSConfigAbsoluteFilePath = configFilePath });
+
+            var response = JsonConvert.DeserializeObject<TSConfigResponse>(responseString);
+
+            if (response.Error != null)
+            {
+                logger.LogError($"Parsing error. Code: {response.ErrorCode}, Message: {response.Error}");
+            }
+
+            return response;
         }
 
         public async Task NewTSConfig()
@@ -81,45 +90,35 @@ namespace SonarJsConfig
             await CallNodeServerAsync(Endpoints.NewTSConfig, null);
         }
 
-        public async Task InitLinter()
+        public async Task InitLinter(IEnumerable<Rule> rules)
         {
-            // TODO - pick correct rules
-            var jsRuleKeys = EslintRulesProvider.GetJavaScriptRuleKeys();
-            var jsRules = jsRuleKeys.Select(x => new Rule { Key = x, Configurations = Array.Empty<string>() })
-                .ToArray();
-
-            // TODO - pick correct rules
-            var tsRuleKeys = EslintRulesProvider.GetTypeScriptRuleKeys();
-            var tsRules = jsRuleKeys.Select(x => new Rule { Key = x, Configurations = Array.Empty<string>() })
-                .ToArray();
-
             var config = Configuration.CreateFromEnvVars();
 
             var request = new InitLinterRequest
             {
                 Environments = config.getStringArray(GlobalVariableNames.ENVIRONMENTS_PROPERTY_KEY),
                 globals = config.getStringArray(GlobalVariableNames.ENVIRONMENTS_PROPERTY_KEY),
-                Rules = jsRules // tsRules
+                Rules = rules.ToArray()
             };
 
-            var result = await CallNodeServerAsync(Endpoints.InitLinter, request);
+            await CallNodeServerAsync(Endpoints.InitLinter, request);
         }
 
-        public async Task<IEnumerable<Issue>> AnalyzeJS(string filePath, string fileContent) =>
-            await Analyze(filePath, fileContent, Endpoints.AnalyzeJs, EslintRulesProvider.GetJavaScriptRuleKeys());
+        public async Task<AnalysisResponse> AnalyzeJS(string filePath, string fileContent, bool ignoreHeaderComments) =>
+            await Analyze(filePath, fileContent, Endpoints.AnalyzeJs, ignoreHeaderComments);
 
-        public async Task<IEnumerable<Issue>> AnalyzeTS(string filePath, string fileContent) =>
-            await Analyze(filePath, fileContent, Endpoints.AnalyzeTs, EslintRulesProvider.GetTypeScriptRuleKeys());
+        public async Task<AnalysisResponse> AnalyzeTS(string filePath, string fileContent, bool ignoreHeaderComments) =>
+            await Analyze(filePath, fileContent, Endpoints.AnalyzeTs, ignoreHeaderComments);
 
-        private async Task<IEnumerable<Issue>> Analyze(string filePath, string fileContent, string endpoint, IEnumerable<string> ruleKeys)
+        private async Task<AnalysisResponse> Analyze(string filePath, string fileContent, string endpoint, bool ignoreHeaderComments)
         {
-            var analysisRequest = CreateAnalysisRequest(filePath, fileContent, ruleKeys);
+            var analysisRequest = CreateAnalysisRequest(filePath, fileContent, ignoreHeaderComments);
 
             var responseString = await CallNodeServerAsync(endpoint, analysisRequest);
 
             if (responseString == null)
             {
-                return EmptyIssues;
+                return null;
             }
 
             var eslintBridgeResponse = JsonConvert.DeserializeObject<AnalysisResponse>(responseString);
@@ -127,10 +126,9 @@ namespace SonarJsConfig
             if (eslintBridgeResponse.ParsingError != null)
             {
                 LogParsingError(filePath, eslintBridgeResponse.ParsingError);
-                return EmptyIssues;
             }
 
-            return eslintBridgeResponse.Issues;
+            return eslintBridgeResponse;
         }
 
         private async Task<bool> EnsureServerStarted()
@@ -223,22 +221,22 @@ namespace SonarJsConfig
         private void LogParsingError(string path, ParsingError parsingError)
         {
             //https://github.com/SonarSource/SonarJS/blob/1916267988093cb5eb1d0b3d74bb5db5c0dbedec/sonar-javascript-plugin/src/main/java/org/sonar/plugins/javascript/eslint/AbstractEslintSensor.java#L134
-            if (parsingError.ErrorCode == "MISSING_TYPESCRIPT")
+            if (parsingError.Code == ParsingErrorCode.MISSING_TYPESCRIPT)
             {
                 logger.LogMessage("TypeScript dependency was not found and it is required for analysis.");
             }
-            else if (parsingError.ErrorCode == "UNSUPPORTED_TYPESCRIPT")
+            else if (parsingError.Code == ParsingErrorCode.UNSUPPORTED_TYPESCRIPT)
             {
                 logger.LogMessage(parsingError.Message);
                 logger.LogMessage("If it's not possible to upgrade version of TypeScript used by the project, consider installing supported TypeScript version just for the time of analysis");
             }
             else
             {
-                logger.LogMessage($"Failed to parse file [{path}] at line {parsingError.Line}: {parsingError.Message}");
+                logger.LogMessage($"Failed to parse file [{path}] at line {parsingError.Line}: {parsingError.Code} {parsingError.Message}");
             }
         }
 
-        private AnalysisRequest CreateAnalysisRequest(string filePath, string fileContent, IEnumerable<string> ruleKeys)
+        private AnalysisRequest CreateAnalysisRequest(string filePath, string fileContent, bool ignoreHeaderComments)
         {
             // NOTE: the rule keys we pass to the eslint-bridge are not the Sonar "Sxxxx" keys.
             // Instead, there are more user-friendly keys.
@@ -248,7 +246,7 @@ namespace SonarJsConfig
             {
                 FilePath = filePath,
                 FileContent = fileContent,
-
+                IgnoreHeaderComments = ignoreHeaderComments
                 // TODO TSConfigFilePaths  = ???
             };
 

@@ -6,10 +6,8 @@ using System.Linq;
 using EnvDTE;
 using Microsoft.VisualStudio.Shell;
 using SonarJsConfig;
-using Sonarlint;
+using SonarJsConfig.ESLint.Data;
 using SonarLint.VisualStudio.Integration.Vsix.Analysis;
-
-using ESLintIssue = SonarJsConfig.ESLint.Data.Issue;
 
 namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
 {
@@ -78,37 +76,38 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
                 return;
             }
 
-            eslintBridgeWrapper.InitLinter();
-
-
             var language = detectedLanguages.Contains(AnalysisLanguage.Typescript)
                 ? AnalysisLanguage.Typescript : AnalysisLanguage.Javascript;
 
+            var rules = GetRules(language);
+            await eslintBridgeWrapper.InitLinter(rules);
+
             var fileContent = string.Empty; //GetFileContent(projectItem);
 
-            IEnumerable<ESLintIssue> esLintBridgeIssues;
+            AnalysisResponse response;
+            var ignoreHeaderComments = false;
             if (language == AnalysisLanguage.Typescript)
             {
-                esLintBridgeIssues = await eslintBridgeWrapper.AnalyzeTS(path, fileContent);
+                response = await eslintBridgeWrapper.AnalyzeTS(path, fileContent, ignoreHeaderComments);
             }
             else
             {
-                esLintBridgeIssues = await eslintBridgeWrapper.AnalyzeJS(path, fileContent);
+                response = await eslintBridgeWrapper.AnalyzeJS(path, fileContent, ignoreHeaderComments);
             }
 
-            if (!esLintBridgeIssues.Any())
+            if (!response.Issues.Any())
             {
                 return;
             }
 
             var timer = Stopwatch.StartNew();
 
-            var analysisIssues = esLintBridgeIssues.Select(x =>
-                new Issue
+            var analysisIssues = response.Issues.Select(x =>
+                new Sonarlint.Issue
                 {
                     EndLine = x.EndLine,
                     Message = x.Message,
-                    RuleKey = "javascript:" + x.RuleId,
+                    RuleKey = $"{language.ToString().ToLowerInvariant()}:{x.RuleId}",
                     StartLine = x.Line,
                     FilePath = path,
                     StartLineOffset = x.Column,
@@ -120,6 +119,27 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
 
             logger.WriteLine($"Number of issues returned: {analysisIssues.Count()}");
             logger.WriteLine($"Time for consumer to process issues: {timer.ElapsedMilliseconds}ms");
+        }
+
+        private IEnumerable<Rule> GetRules(AnalysisLanguage language)
+        {
+            IEnumerable<string> ruleKeys;
+
+            switch(language)
+            {
+                case AnalysisLanguage.Javascript:
+                    ruleKeys = EslintRulesProvider.GetJavaScriptRuleKeys();
+                    break;
+
+                case AnalysisLanguage.Typescript:
+                    ruleKeys = EslintRulesProvider.GetTypeScriptRuleKeys();
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(language), $"Unsupported language: {language}");
+            }
+
+            return ruleKeys.Select(x => new Rule { Key = x, Configurations = Array.Empty<string>() })
+                .ToArray();
         }
 
         private string GetFileContent(ProjectItem projectItem)
