@@ -17,6 +17,8 @@ namespace SonarJsConfig
         Task<bool> Start();
         Task Stop();
         Task InitLinter(); // TODO - parameterise the initialization
+        Task TSConfigFiles(string configFilePath);
+        Task NewTSConfig();
         Task<IEnumerable<EslintBridgeIssue>> AnalyzeJS(string filePath, string fileContent);
         Task<IEnumerable<EslintBridgeIssue>> AnalyzeTS(string filePath, string fileContent);
     }
@@ -25,6 +27,8 @@ namespace SonarJsConfig
     {
         private static class Endpoints
         {
+            public const string TSConfigFiles = "tsconfig-files";
+            public const string NewTSConfig = "new-tsconfig";
             public const string InitLinter = "init-linter";
             public const string AnalyzeJs = "analyze-js";
             public const string AnalyzeTs = "analyze-ts";
@@ -66,6 +70,16 @@ namespace SonarJsConfig
 
             await CallNodeServerAsync(Endpoints.Close, null);
             serverProcess.Stop();
+        }
+
+        public async Task TSConfigFiles(string configFilePath)
+        {
+            await CallNodeServerAsync(Endpoints.TSConfigFiles, new TSConfigRequest { TSConfigAbsoluteFilePath = configFilePath });
+        }
+
+        public async Task NewTSConfig()
+        {
+            await CallNodeServerAsync(Endpoints.NewTSConfig, null);
         }
 
         public async Task InitLinter()
@@ -175,20 +189,18 @@ namespace SonarJsConfig
 
         private async Task<string> CallNodeServerAsync(string serverEndpoint, object request)
         {
-            var serializedRequest = 
+            var serializedRequest =
                 request == null ? "" : JsonConvert.SerializeObject(request, Formatting.Indented);
+            var content = new StringContent(serializedRequest ?? string.Empty, Encoding.UTF8, "application/json");
 
             HttpResponseMessage response;
             try
             {
                 var timer = Stopwatch.StartNew();
-
-                var requestContent = new StringContent(serializedRequest ?? string.Empty, Encoding.UTF8, "application/json");
-
-                response = await httpClient.PostAsync($"http://localhost:{port}/{serverEndpoint}",
-                        requestContent);
+                response = await httpClient.PostAsync($"http://localhost:{port}/{serverEndpoint}", content);
 
                 timer.Stop();
+                logger.LogMessage("");
                 logger.LogMessage($"Endpoint: {serverEndpoint} Roundtrip: {timer.ElapsedMilliseconds}ms");
             }
             catch (AggregateException ex)
