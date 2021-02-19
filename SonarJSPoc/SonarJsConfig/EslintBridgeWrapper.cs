@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using SonarJsConfig.Config;
-using SonarJsConfig.Data;
+using SonarJsConfig.ESLint.Data;
 
 namespace SonarJsConfig
 {
@@ -19,8 +19,8 @@ namespace SonarJsConfig
         Task InitLinter(); // TODO - parameterise the initialization
         Task TSConfigFiles(string configFilePath);
         Task NewTSConfig();
-        Task<IEnumerable<EslintBridgeIssue>> AnalyzeJS(string filePath, string fileContent);
-        Task<IEnumerable<EslintBridgeIssue>> AnalyzeTS(string filePath, string fileContent);
+        Task<IEnumerable<Issue>> AnalyzeJS(string filePath, string fileContent);
+        Task<IEnumerable<Issue>> AnalyzeTS(string filePath, string fileContent);
     }
 
     public sealed class EslintBridgeWrapper : IEslintBridge, IDisposable
@@ -35,9 +35,8 @@ namespace SonarJsConfig
             public const string Close = "close";
         }
 
-        private static readonly IEnumerable<EslintBridgeIssue> EmptyIssues = Array.Empty<EslintBridgeIssue>();
+        private static readonly IEnumerable<Issue> EmptyIssues = Array.Empty<Issue>();
 
-        //private const string DownloadUrl = "https://binaries.sonarsource.com/Distribution/sonar-javascript-plugin/sonar-javascript-plugin-6.2.0.12043.jar";
         private const string DownloadUrl = "https://binaries.sonarsource.com/Distribution/sonar-javascript-plugin/sonar-javascript-plugin-7.2.0.14938.jar";
 
         private readonly ILogger logger;
@@ -86,12 +85,12 @@ namespace SonarJsConfig
         {
             // TODO - pick correct rules
             var jsRuleKeys = EslintRulesProvider.GetJavaScriptRuleKeys();
-            var jsRules = jsRuleKeys.Select(x => new EsLintRuleConfig { Key = x, Configurations = Array.Empty<string>() })
+            var jsRules = jsRuleKeys.Select(x => new Rule { Key = x, Configurations = Array.Empty<string>() })
                 .ToArray();
 
             // TODO - pick correct rules
             var tsRuleKeys = EslintRulesProvider.GetTypeScriptRuleKeys();
-            var tsRules = jsRuleKeys.Select(x => new EsLintRuleConfig { Key = x, Configurations = Array.Empty<string>() })
+            var tsRules = jsRuleKeys.Select(x => new Rule { Key = x, Configurations = Array.Empty<string>() })
                 .ToArray();
 
             var config = Configuration.CreateFromEnvVars();
@@ -106,13 +105,13 @@ namespace SonarJsConfig
             var result = await CallNodeServerAsync(Endpoints.InitLinter, request);
         }
 
-        public async Task<IEnumerable<EslintBridgeIssue>> AnalyzeJS(string filePath, string fileContent) =>
+        public async Task<IEnumerable<Issue>> AnalyzeJS(string filePath, string fileContent) =>
             await Analyze(filePath, fileContent, Endpoints.AnalyzeJs, EslintRulesProvider.GetJavaScriptRuleKeys());
 
-        public async Task<IEnumerable<EslintBridgeIssue>> AnalyzeTS(string filePath, string fileContent) =>
+        public async Task<IEnumerable<Issue>> AnalyzeTS(string filePath, string fileContent) =>
             await Analyze(filePath, fileContent, Endpoints.AnalyzeTs, EslintRulesProvider.GetTypeScriptRuleKeys());
 
-        private async Task<IEnumerable<EslintBridgeIssue>> Analyze(string filePath, string fileContent, string endpoint, IEnumerable<string> ruleKeys)
+        private async Task<IEnumerable<Issue>> Analyze(string filePath, string fileContent, string endpoint, IEnumerable<string> ruleKeys)
         {
             var analysisRequest = CreateAnalysisRequest(filePath, fileContent, ruleKeys);
 
@@ -123,11 +122,11 @@ namespace SonarJsConfig
                 return EmptyIssues;
             }
 
-            var eslintBridgeResponse = JsonConvert.DeserializeObject<EslintBridgeResponse>(responseString);
+            var eslintBridgeResponse = JsonConvert.DeserializeObject<AnalysisResponse>(responseString);
 
-            if (eslintBridgeResponse.EslintBridgeParsingError != null)
+            if (eslintBridgeResponse.ParsingError != null)
             {
-                LogParsingError(filePath, eslintBridgeResponse.EslintBridgeParsingError);
+                LogParsingError(filePath, eslintBridgeResponse.ParsingError);
                 return EmptyIssues;
             }
 
@@ -221,7 +220,7 @@ namespace SonarJsConfig
             return responseString;
         }
 
-        private void LogParsingError(string path, EslintBridgeParsingError parsingError)
+        private void LogParsingError(string path, ParsingError parsingError)
         {
             //https://github.com/SonarSource/SonarJS/blob/1916267988093cb5eb1d0b3d74bb5db5c0dbedec/sonar-javascript-plugin/src/main/java/org/sonar/plugins/javascript/eslint/AbstractEslintSensor.java#L134
             if (parsingError.ErrorCode == "MISSING_TYPESCRIPT")
@@ -239,18 +238,18 @@ namespace SonarJsConfig
             }
         }
 
-        private EslintBridgeAnalysisRequest CreateAnalysisRequest(string filePath, string fileContent, IEnumerable<string> ruleKeys)
+        private AnalysisRequest CreateAnalysisRequest(string filePath, string fileContent, IEnumerable<string> ruleKeys)
         {
             // NOTE: the rule keys we pass to the eslint-bridge are not the Sonar "Sxxxx" keys.
             // Instead, there are more user-friendly keys.
             // We will need to translate between the "Sxxx" and the "friendly" keys.
             // The "friendly" keys are at https://github.com/SonarSource/eslint-plugin-sonarjs/blob/master/src/index.ts
-            var eslintRequest = new EslintBridgeAnalysisRequest
+            var eslintRequest = new AnalysisRequest
             {
                 FilePath = filePath,
                 FileContent = fileContent,
-                Rules = ruleKeys.Select(x => new EsLintRuleConfig { Key = x, Configurations = Array.Empty<string>() })
-                    .ToArray()
+
+                // TODO TSConfigFilePaths  = ???
             };
 
             return eslintRequest;

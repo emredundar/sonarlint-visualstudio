@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 
-namespace SonarJsConfig.Data
+namespace SonarJsConfig.ESLint.Data
 {
 
     // "init-linter" needs to be called before running an analysis.
@@ -30,13 +25,20 @@ namespace SonarJsConfig.Data
         // Java version: https://github.com/SonarSource/SonarJS/blob/0dda9105bab520569708e230f4d2dffdca3cec74/sonar-javascript-plugin/src/main/java/org/sonar/plugins/javascript/eslint/EslintBridgeServerImpl.java
 
         [JsonProperty("rules")]
-        public EsLintRuleConfig[] Rules { get; set; }
+        public Rule[] Rules { get; set; }
 
         [JsonProperty("environments")]
         public string[] Environments { get; set; }
 
         [JsonProperty("globals")]
         public string[] globals { get; set; }
+    }
 
+    public class Rule
+    {
+        [JsonProperty("key")]
+        public string Key { get; set; }
+        [JsonProperty("configurations")]
+        public string[] Configurations { get; set; }
     }
 }

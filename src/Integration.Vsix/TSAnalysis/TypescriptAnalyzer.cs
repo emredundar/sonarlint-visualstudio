@@ -6,9 +6,10 @@ using System.Linq;
 using EnvDTE;
 using Microsoft.VisualStudio.Shell;
 using SonarJsConfig;
-using SonarJsConfig.Data;
 using Sonarlint;
 using SonarLint.VisualStudio.Integration.Vsix.Analysis;
+
+using ESLintIssue = SonarJsConfig.ESLint.Data.Issue;
 
 namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
 {
@@ -85,7 +86,7 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
 
             var fileContent = string.Empty; //GetFileContent(projectItem);
 
-            IEnumerable<EslintBridgeIssue> esLintBridgeIssues;
+            IEnumerable<ESLintIssue> esLintBridgeIssues;
             if (language == AnalysisLanguage.Typescript)
             {
                 esLintBridgeIssues = await eslintBridgeWrapper.AnalyzeTS(path, fileContent);
@@ -105,11 +106,13 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
             var analysisIssues = esLintBridgeIssues.Select(x =>
                 new Issue
                 {
-                    EndLine = x.EndLine ?? 0,
+                    EndLine = x.EndLine,
                     Message = x.Message,
                     RuleKey = "javascript:" + x.RuleId,
                     StartLine = x.Line,
-                    FilePath = path
+                    FilePath = path,
+                    StartLineOffset = x.Column,
+                    EndLineOffset = x.EndColumn
                 });
 
             consumer.Accept(path, analysisIssues);
