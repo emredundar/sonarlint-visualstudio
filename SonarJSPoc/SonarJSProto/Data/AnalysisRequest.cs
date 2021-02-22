@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 
 namespace SonarJsConfig.ESLint.Data
 {
+    // Note: corresponding TS class is called "AnalysisInput"
     public class AnalysisRequest
     {
         [JsonProperty("filePath")]

@@ -21,9 +21,12 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using SonarJsConfig;
+using SonarJsConfig.Config;
 using SonarLint.VisualStudio.Integration.Vsix.Analysis;
 using SonarLint.VisualStudio.Integration.Vsix.Resources;
 
@@ -86,6 +89,10 @@ namespace SonarLint.VisualStudio.Integration.Vsix
                 logger = await this.GetMefServiceAsync<ILogger>();
                 logger.WriteLine(Resources.Strings.Daemon_Initializing);
 
+
+                var bridge = await this.GetMefServiceAsync<IEslintBridge>();
+                var tsConfigMapper = await this.GetMefServiceAsync<ITsConfigMapper>();
+
                 await DisableRuleCommand.InitializeAsync(this, logger);
 
                 daemon = await this.GetMefServiceAsync<ISonarLintDaemon>();
@@ -95,6 +102,8 @@ namespace SonarLint.VisualStudio.Integration.Vsix
                 // Set up the solution tracker so we can shut down the daemon when a solution is closed
                 var solutionTracker = await this.GetMefServiceAsync<IActiveSolutionTracker>();
                 solutionTracker.ActiveSolutionChanged += HandleActiveSolutionChanged;
+
+
 
                 IDaemonInstaller installer = await this.GetMefServiceAsync<IDaemonInstaller>();
                 if (!installer.IsInstalled())

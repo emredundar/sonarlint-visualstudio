@@ -1,7 +1,6 @@
 ﻿using System.IO;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using SonarJsConfig;
 
 namespace SonarJSPocTests
 {

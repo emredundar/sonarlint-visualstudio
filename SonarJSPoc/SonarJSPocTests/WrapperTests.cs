@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SonarJsConfig;
+using SonarJsConfig.Config;
 using SonarJsConfig.ESLint.Data;
 
 namespace SonarJSPocTests
@@ -34,9 +35,24 @@ namespace SonarJSPocTests
             var configResposne = await wrapper.TSConfigFiles(tsConfigFilePath);
 
             // Analyze
-            var results = await wrapper.AnalyzeJS("", "qwdqwdqd//TODO\n", ignoreHeaderComments: false);
+            var results = await wrapper.AnalyzeJS("", "//TODO\n", ignoreHeaderComments: false);
 
             results.Issues.Count().Should().Be(1);
+        }
+
+        [TestMethod]
+        public async Task TsConfigMapping()
+        {
+            const string baseDirectory = @"D:\repos\sq\other\SonarJS\eslint-bridge";
+
+            var logger = new ConsoleLogger();
+            using var wrapper = new EslintBridgeWrapper(logger);
+
+            var started = await wrapper.Start();
+
+            var testSubject = new TsConfigMapper(wrapper, logger);
+
+            await testSubject.InitializeAsync(baseDirectory);
         }
 
         private string GetResourceFilePath(params string[] parts)

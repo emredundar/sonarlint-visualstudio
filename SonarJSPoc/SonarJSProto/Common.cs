@@ -27,6 +27,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using SharpCompress.Compressors.Xz;
+using SonarLint.VisualStudio.Integration;
 
 namespace SonarJsConfig
 {
@@ -233,7 +234,7 @@ namespace SonarJsConfig
 
         private static void LogMessage(string message, ILogger logger)
         {
-            logger.LogMessage(message);
+            logger.WriteLine(message);
         }
     }
 }

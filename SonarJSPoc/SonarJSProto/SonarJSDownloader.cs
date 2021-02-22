@@ -20,6 +20,7 @@
 
 using System;
 using System.IO;
+using SonarLint.VisualStudio.Integration;
 
 namespace SonarJsConfig
 {

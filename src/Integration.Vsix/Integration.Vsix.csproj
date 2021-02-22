@@ -123,7 +123,9 @@
   </ItemGroup>  
   
   <ItemGroup Label="Project references">
-    <ProjectReference Include="..\..\SonarJSPoc\SonarJsConfig\SonarJsConfig.csproj" />
+    <ProjectReference Include="..\..\SonarJSPoc\SonarJSProto\SonarJSProto.csproj" >
+      <Name>SonarJSProto</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\sonarqube-webclient\SonarQube.Client\SonarQube.Client.csproj">
       <Project>{BA771DF7-9F99-4DE3-B85B-3E5DB742A55C}</Project>
       <Name>SonarQube.Client.2015</Name>
@@ -299,7 +301,9 @@
     <ManifestFolder Condition=" $(VSTargetVersion) == '2015' AND $(VisualStudioVersion) != '14.0' ">Manifests\VS2015_v3Manifest\</ManifestFolder>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="$(ManifestFolder)source.extension.vsixmanifest" />
+    <None Include="$(ManifestFolder)source.extension.vsixmanifest">
+      <SubType>Designer</SubType>
+    </None>
   </ItemGroup>
   <!-- ***************************************** -->
 

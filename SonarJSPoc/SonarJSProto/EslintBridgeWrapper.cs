@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -9,6 +10,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using SonarJsConfig.Config;
 using SonarJsConfig.ESLint.Data;
+using SonarLint.VisualStudio.Integration;
 
 namespace SonarJsConfig
 {
@@ -23,7 +25,9 @@ namespace SonarJsConfig
         Task<AnalysisResponse> AnalyzeTS(string filePath, string fileContent, bool ignoreHeaderComments);
     }
 
-    public sealed class EslintBridgeWrapper : IEslintBridge, IDisposable
+    [Export(typeof(IEslintBridge))]
+    [PartCreationPolicy(CreationPolicy.Shared)]
+    internal sealed class EslintBridgeWrapper : IEslintBridge, IDisposable
     {
         private static class Endpoints
         {
@@ -48,6 +52,7 @@ namespace SonarJsConfig
 
         private readonly HttpClient httpClient;
 
+        [ImportingConstructor]
         public EslintBridgeWrapper(ILogger logger)
         {
             this.logger = logger;

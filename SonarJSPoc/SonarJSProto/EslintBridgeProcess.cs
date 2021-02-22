@@ -1,13 +1,14 @@
 ﻿using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using SonarLint.VisualStudio.Integration;
 
 namespace SonarJsConfig
 {
     /// <summary>
     /// Wraps the low-level .NET Process object used to launch and terminate the NodeJS process
     /// </summary>
-    public sealed class EslintBridgeProcess
+    internal sealed class EslintBridgeProcess
     {
         private readonly ILogger logger;
         private readonly string serverStartupScriptLocation;

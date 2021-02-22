@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net46</TargetFramework>
     <LangVersion>latest</LangVersion>
+    <AssemblyName>SonarJSProto</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,7 +28,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Core\Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="System.Net.Http" />
+    <Reference Include="System.ComponentModel.Composition" />
   </ItemGroup>
 
 </Project>

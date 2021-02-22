@@ -6,6 +6,7 @@ using System.Linq;
 using EnvDTE;
 using Microsoft.VisualStudio.Shell;
 using SonarJsConfig;
+using SonarJsConfig.Config;
 using SonarJsConfig.ESLint.Data;
 using SonarLint.VisualStudio.Integration.Vsix.Analysis;
 
@@ -29,14 +30,16 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
     [PartCreationPolicy(CreationPolicy.Shared)]
     public partial class TypescriptAnalyzer : IAnalyzer
     {
+        private readonly IEslintBridge eslintBridge;
+        private readonly ITsConfigMapper configMapper;
         private readonly ILogger logger;
-        private readonly EslintBridgeWrapper eslintBridgeWrapper;
 
         [ImportingConstructor]
-        public TypescriptAnalyzer(ILogger logger)
+        public TypescriptAnalyzer(IEslintBridge eslintBridge, ITsConfigMapper configMapper, ILogger logger)
         {
+            this.eslintBridge = eslintBridge;
+            this.configMapper = configMapper;
             this.logger = logger;
-            eslintBridgeWrapper = new EslintBridgeWrapper(new LoggerAdapter(logger));
         }
 
         public bool IsAnalysisSupported(IEnumerable<AnalysisLanguage> languages)
@@ -70,17 +73,23 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
             // info on VS threading.
             await System.Threading.Tasks.Task.Yield(); // Get off the caller's callstack
 
-            var serverStarted = await eslintBridgeWrapper.Start();
+            var serverStarted = await eslintBridge.Start();
             if (!serverStarted)
             {
                 return;
+            }
+
+            var configFilePath = configMapper.FindTsConfigFile(path);
+            if (configFilePath == null)
+            {
+                logger.WriteLine($"[TS PROTO] No tsconfig.json file found, file will not be analysed: {path}");
             }
 
             var language = detectedLanguages.Contains(AnalysisLanguage.Typescript)
                 ? AnalysisLanguage.Typescript : AnalysisLanguage.Javascript;
 
             var rules = GetRules(language);
-            await eslintBridgeWrapper.InitLinter(rules);
+            await eslintBridge.InitLinter(rules);
 
             var fileContent = string.Empty; //GetFileContent(projectItem);
 
@@ -88,11 +97,11 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
             var ignoreHeaderComments = false;
             if (language == AnalysisLanguage.Typescript)
             {
-                response = await eslintBridgeWrapper.AnalyzeTS(path, fileContent, ignoreHeaderComments);
+                response = await eslintBridge.AnalyzeTS(path, fileContent, ignoreHeaderComments);
             }
             else
             {
-                response = await eslintBridgeWrapper.AnalyzeJS(path, fileContent, ignoreHeaderComments);
+                response = await eslintBridge.AnalyzeJS(path, fileContent, ignoreHeaderComments);
             }
 
             if (!response.Issues.Any())
@@ -152,26 +161,6 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
                 fileContent = editPoint.GetText(textDocument.EndPoint);
             }
             return fileContent;
-        }
-
-        private class LoggerAdapter : SonarJsConfig.ILogger
-        {
-            private readonly ILogger vsLogger;
-
-            public LoggerAdapter(ILogger vsLogger)
-            {
-                this.vsLogger = vsLogger;
-            }
-
-            void SonarJsConfig.ILogger.LogError(string message)
-            {
-                vsLogger.WriteLine("ERROR: " + message);
-            }
-
-            void SonarJsConfig.ILogger.LogMessage(string message)
-            {
-                vsLogger.WriteLine(message);
-            }
         }
     }
 }

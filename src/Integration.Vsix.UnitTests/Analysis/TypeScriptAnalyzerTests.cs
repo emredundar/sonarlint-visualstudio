@@ -4,6 +4,8 @@ using System.Linq;
 using EnvDTE;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
+using SonarJsConfig;
+using SonarJsConfig.Config;
 using Sonarlint;
 using SonarLint.VisualStudio.Integration.Vsix;
 using SonarLint.VisualStudio.Integration.Vsix.TSAnalysis;
@@ -143,7 +145,7 @@ function foo(a) {  // Noncompliant
         {
             var consumer = new Mock<IIssueConsumer>();
 
-            var analyzer = new TypescriptAnalyzer(logger);
+            var analyzer = new TypescriptAnalyzer(Mock.Of<IEslintBridge>(), Mock.Of<ITsConfigMapper>(), logger);
             analyzer.ExecuteAnalysis(path, "", new[] {AnalysisLanguage.Typescript}, consumer.Object, projectItem);
 
             return consumer;
