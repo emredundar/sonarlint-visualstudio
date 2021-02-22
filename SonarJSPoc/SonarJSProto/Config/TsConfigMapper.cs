@@ -72,6 +72,14 @@ namespace SonarJsConfig.Config
         private async Task<IEnumerable<TsConfigFile>> ProcessTsConfigFiles(IEnumerable<string> filePaths)
         {
             var tsConfigFiles = new List<TsConfigFile>();
+
+            var serverStarted = await eslintBridge.Start();
+            if (!serverStarted)
+            {
+                logger.LogMessage("ESLintBridge server did not start");
+                return tsConfigFiles;
+            }
+
             Queue<string> worklist = new Queue<string>(filePaths);
             var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -111,16 +119,20 @@ namespace SonarJsConfig.Config
                 logger.LogError(response.Error);
             }
 
-            return new TsConfigFile(filePath, response.Files, response.ProjectReferences);
+            return new TsConfigFile(GetCanonicalPath(filePath),
+                response.Files.Select(GetCanonicalPath),
+                response.ProjectReferences.Select(GetCanonicalPath));
         }
+
+        private static string GetCanonicalPath(string path) => System.IO.Path.GetFullPath(path);
 
         private class TsConfigFile
         {
             public TsConfigFile(string fileName, IEnumerable<string> files, IEnumerable<string> projectReferences)
             {
                 FileName = fileName;
-                Files = files ?? Array.Empty<string>();
-                ProjectReferences = projectReferences ?? Array.Empty<string>();
+                Files = files.ToArray() ?? Array.Empty<string>();
+                ProjectReferences = projectReferences?.ToArray() ?? Array.Empty<string>();
             }
 
             public string FileName { get; }

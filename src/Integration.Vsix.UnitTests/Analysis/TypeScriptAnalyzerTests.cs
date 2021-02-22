@@ -145,7 +145,7 @@ function foo(a) {  // Noncompliant
         {
             var consumer = new Mock<IIssueConsumer>();
 
-            var analyzer = new TypescriptAnalyzer(Mock.Of<IEslintBridge>(), Mock.Of<ITsConfigMapper>(), logger);
+            var analyzer = new TypescriptAnalyzer(Mock.Of<IEslintBridge>(), Mock.Of<ITsConfigMapper>(), Mock.Of<ITsConfigMonitor>(), logger);
             analyzer.ExecuteAnalysis(path, "", new[] {AnalysisLanguage.Typescript}, consumer.Object, projectItem);
 
             return consumer;

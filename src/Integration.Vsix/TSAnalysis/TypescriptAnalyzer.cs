@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
 using EnvDTE;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Threading;
 using SonarJsConfig;
 using SonarJsConfig.Config;
 using SonarJsConfig.ESLint.Data;
@@ -35,8 +37,11 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
         private readonly ILogger logger;
 
         [ImportingConstructor]
-        public TypescriptAnalyzer(IEslintBridge eslintBridge, ITsConfigMapper configMapper, ILogger logger)
+        public TypescriptAnalyzer(IEslintBridge eslintBridge, ITsConfigMapper configMapper, ITsConfigMonitor monitor, ILogger logger)
         {
+            // We're creating the monitor here so that it starts listening for changes.
+            // We don't actually need to call it.
+
             this.eslintBridge = eslintBridge;
             this.configMapper = configMapper;
             this.logger = logger;
@@ -69,9 +74,14 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
             IIssueConsumer consumer,
             IEnumerable<AnalysisLanguage> detectedLanguages)
         {
-            // See https://github.com/microsoft/vs-threading/blob/master/doc/cookbook_vs.md for
-            // info on VS threading.
-            await System.Threading.Tasks.Task.Yield(); // Get off the caller's callstack
+            //// See https://github.com/microsoft/vs-threading/blob/master/doc/cookbook_vs.md for
+            //// info on VS threading.
+            //await System.Threading.Tasks.Task.Yield(); // Get off the caller's callstack
+            if (ThreadHelper.CheckAccess())
+            {
+                // Switch a background thread
+                await TaskScheduler.Default;
+            }
 
             var serverStarted = await eslintBridge.Start();
             if (!serverStarted)
