@@ -20,3 +20,4 @@ nested-control-flow
 no-hardcoded-credentials
 no-implicit-dependencies
 sonar-max-lines-per-function
+quotes

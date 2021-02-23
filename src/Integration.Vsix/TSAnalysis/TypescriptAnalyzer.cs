@@ -70,6 +70,9 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
             ThreadHelper.JoinableTaskFactory.RunAsync(() => InternalExecuteAnalysisAsync(path, consumer, detectedLanguages));
         }
 
+        private AnalysisLanguage? lastAnalyzedLanguage;
+        private string lastUsedTsConfigFilePath;
+
         private async System.Threading.Tasks.Task InternalExecuteAnalysisAsync(string path,
             IIssueConsumer consumer,
             IEnumerable<AnalysisLanguage> detectedLanguages)
@@ -89,18 +92,17 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
                 return;
             }
 
-            var configFilePath = configMapper.FindTsConfigFile(path);
-            if (configFilePath == null)
-            {
-                logger.WriteLine($"[TS PROTO] No tsconfig.json file found, file will not be analysed: {path}");
-            }
-
             var language = detectedLanguages.Contains(AnalysisLanguage.Typescript)
                 ? AnalysisLanguage.Typescript : AnalysisLanguage.Javascript;
 
-            var rules = GetRules(language);
-            await eslintBridge.InitLinter(rules);
+            var rulesChanged = await EnsureCorrectRulesUsedAsync(language);
+            var configFilePath = await GetTsConfigFileAsync(language, path, rulesChanged);
 
+            if (configFilePath == null && language == AnalysisLanguage.Typescript)
+            {
+                logger.WriteLine($"[TS PROTO] No tsconfig.json file found, file will not be analysed: {path}");
+                return;
+            }
             var fileContent = string.Empty; //GetFileContent(projectItem);
 
             AnalysisResponse response;
@@ -140,6 +142,23 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
             logger.WriteLine($"Time for consumer to process issues: {timer.ElapsedMilliseconds}ms");
         }
 
+        // Returns true if the set of rules used has changed
+        private async System.Threading.Tasks.Task<bool> EnsureCorrectRulesUsedAsync(AnalysisLanguage language)
+        {
+            // Check whether we need to reset the rules
+            if (lastAnalyzedLanguage.HasValue && lastAnalyzedLanguage.Value == language)
+            {
+                return false;
+            }
+
+            lastAnalyzedLanguage = language;
+
+            var rules = GetRules(language);
+            await eslintBridge.NewTSConfig();
+            await eslintBridge.InitLinter(rules);
+            return true;
+        }
+
         private IEnumerable<Rule> GetRules(AnalysisLanguage language)
         {
             IEnumerable<string> ruleKeys;
@@ -147,10 +166,12 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
             switch(language)
             {
                 case AnalysisLanguage.Javascript:
+                    ruleKeys = EslintRulesProvider.GetJavaScriptVsCodeRuleKeys();
                     ruleKeys = EslintRulesProvider.GetJavaScriptRuleKeys();
                     break;
 
                 case AnalysisLanguage.Typescript:
+                    ruleKeys = EslintRulesProvider.GetTypeScriptVsCodeRuleKeys();
                     ruleKeys = EslintRulesProvider.GetTypeScriptRuleKeys();
                     break;
                 default:
@@ -159,6 +180,24 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
 
             return ruleKeys.Select(x => new Rule { Key = x, Configurations = Array.Empty<string>() })
                 .ToArray();
+        }
+
+        private async System.Threading.Tasks.Task<string> GetTsConfigFileAsync(AnalysisLanguage language, string sourceFilePath, bool rulesChanged)
+        {
+            // TODO - set default tsconfig for JavaScript files
+            var configFilePath = configMapper.FindTsConfigFile(sourceFilePath);
+            
+            // Check whether we need to reset the config
+            if (!rulesChanged &&
+                language == AnalysisLanguage.Typescript
+                && lastUsedTsConfigFilePath != configFilePath)
+            {
+                logger.LogMessage("[TS] Resetting the tsconfig.json...");
+                await eslintBridge.NewTSConfig();
+            }
+
+            lastUsedTsConfigFilePath = configFilePath;
+            return configFilePath;
         }
 
         private string GetFileContent(ProjectItem projectItem)

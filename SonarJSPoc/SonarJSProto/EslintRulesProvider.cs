@@ -15,6 +15,12 @@ namespace SonarJsConfig
             => GetRuleKeysFromResources("SonarJSProto.Resources.ts-rules.txt")
                 .Except(GetRuleKeysFromResources("SonarJSProto.Resources.ExcludedRules.txt"));
 
+        public static IEnumerable<string> GetJavaScriptVsCodeRuleKeys()
+            => GetRuleKeysFromResources("SonarJSProto.Resources.js-rules-vscode.txt");
+
+        public static IEnumerable<string> GetTypeScriptVsCodeRuleKeys()
+            => GetRuleKeysFromResources("SonarJSProto.Resources.ts-rules-vscode.txt");
+
         private static IEnumerable<string> GetRuleKeysFromResources(string resourceName)
         {
             using (var reader = new StreamReader(typeof(EslintRulesProvider).Assembly.GetManifestResourceStream(resourceName)))
