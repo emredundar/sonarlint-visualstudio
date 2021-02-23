@@ -170,6 +170,9 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
 
         private IEnumerable<Rule> GetRulesFromQP(AnalysisLanguage language)
         {
+            // TODO: the rules provider needs to handle parameterised rules correctly.
+            // Currently they fail because the settings aren't present.
+
             IEnumerable<Rule> rules;
 
             switch (language)
