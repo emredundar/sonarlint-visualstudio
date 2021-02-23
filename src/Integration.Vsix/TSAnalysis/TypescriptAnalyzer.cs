@@ -153,10 +153,34 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
 
             lastAnalyzedLanguage = language;
 
+//            var rules = GetRulesFromQP(language);
             var rules = GetRules(language);
+
             await eslintBridge.NewTSConfig();
             await eslintBridge.InitLinter(rules);
             return true;
+        }
+
+        private IEnumerable<Rule> GetRulesFromQP(AnalysisLanguage language)
+        {
+            IEnumerable<Rule> rules;
+
+            switch (language)
+            {
+                case AnalysisLanguage.Javascript:
+                    rules = EslintRulesProvider.JavaScript_SonarWay;
+                    rules = EslintRulesProvider.JavaScript_SonarWay_Recommended;
+                    break;
+
+                case AnalysisLanguage.Typescript:
+                    rules = EslintRulesProvider.TypeScript_SonarWay;
+                    rules = EslintRulesProvider.TypeScript_SonarWay_Recommended;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(language), $"Unsupported language: {language}");
+            }
+
+            return rules;
         }
 
         private IEnumerable<Rule> GetRules(AnalysisLanguage language)

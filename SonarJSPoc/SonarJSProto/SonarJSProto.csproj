@@ -8,6 +8,10 @@
 
   <ItemGroup>
     <None Remove="Data\DefaultTsConfigFileForJs.json" />
+    <None Remove="Resources\ExportedQPs\SonarCloud_js_sonar_way.xml" />
+    <None Remove="Resources\ExportedQPs\SonarCloud_js_sonar_way_recommended.xml" />
+    <None Remove="Resources\ExportedQPs\SonarCloud_ts_sonar_way.xml" />
+    <None Remove="Resources\ExportedQPs\SonarCloud_ts_sonar_way_recommended.xml" />
     <None Remove="Resources\ExcludedRules.txt" />
     <None Remove="Resources\globals.json" />
     <None Remove="Resources\js-rules-vscode.txt" />
@@ -17,6 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Resources\ExportedQPs\SonarCloud_js_sonar_way.xml" />
+    <EmbeddedResource Include="Resources\ExportedQPs\SonarCloud_js_sonar_way_recommended.xml" />
+    <EmbeddedResource Include="Resources\ExportedQPs\SonarCloud_ts_sonar_way.xml" />
+    <EmbeddedResource Include="Resources\ExportedQPs\SonarCloud_ts_sonar_way_recommended.xml" />
     <EmbeddedResource Include="Resources\ExcludedRules.txt" />
     <EmbeddedResource Include="Resources\globals.json" />
     <EmbeddedResource Include="Resources\js-rules-vscode.txt" />

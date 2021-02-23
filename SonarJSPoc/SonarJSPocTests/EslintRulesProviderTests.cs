@@ -30,6 +30,15 @@ namespace SonarJSPocTests
             DumpKeys(actual);
         }
 
+        [TestMethod]
+        public void GetRulesFromQualityProfiles()
+        {
+            var rules = EslintRulesProvider.JavaScript_SonarWay;
+            rules = EslintRulesProvider.JavaScript_SonarWay_Recommended;
+            rules = EslintRulesProvider.TypeScript_SonarWay;
+            rules = EslintRulesProvider.TypeScript_SonarWay_Recommended;
+        }
+
         private void DumpKeys(IEnumerable<string> ruleKeys)
         {
             foreach (var item in ruleKeys)
