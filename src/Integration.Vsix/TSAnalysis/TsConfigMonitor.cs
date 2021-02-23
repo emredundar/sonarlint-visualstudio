@@ -39,7 +39,14 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
             SafeUpdateTsMapping();
 
             activeSolutionTracker.ActiveSolutionChanged += ActiveSolutionTracker_ActiveSolutionChanged;
+
+            // TODO: ActiveSolutionChanged doesn't seem to fire for "Open folder" scenarios
+            activeSolutionTracker.AfterProjectOpened += ActiveSolutionTracker_AfterProjectOpened;
         }
+
+        private void ActiveSolutionTracker_AfterProjectOpened(object sender, ProjectOpenedEventArgs e) =>
+            SafeUpdateTsMapping();
+
 
         private void ActiveSolutionTracker_ActiveSolutionChanged(object sender, ActiveSolutionChangedEventArgs e) =>
             SafeUpdateTsMapping();

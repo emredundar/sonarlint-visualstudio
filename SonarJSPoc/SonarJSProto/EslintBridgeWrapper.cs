@@ -24,6 +24,7 @@ namespace SonarJsConfig
         Task NewTSConfig();
         Task<AnalysisResponse> AnalyzeJS(string filePath, string fileContent, bool ignoreHeaderComments);
         Task<AnalysisResponse> AnalyzeTS(string filePath, string fileContent, bool ignoreHeaderComments);
+        RuleKeyMapper RuleKeyMapper { get; }
     }
 
     [Export(typeof(IEslintBridge))]

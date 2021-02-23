@@ -36,6 +36,8 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
         private readonly ITsConfigMapper configMapper;
         private readonly ILogger logger;
 
+        private EslintRulesProvider rulesProvider;
+
         [ImportingConstructor]
         public TypescriptAnalyzer(IEslintBridge eslintBridge, ITsConfigMapper configMapper, ITsConfigMonitor monitor, ILogger logger)
         {
@@ -90,6 +92,11 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
             if (!serverStarted)
             {
                 return;
+            }
+
+            if (rulesProvider == null)
+            {
+                rulesProvider = new EslintRulesProvider(eslintBridge.RuleKeyMapper);
             }
 
             var language = detectedLanguages.Contains(AnalysisLanguage.Typescript)
@@ -168,13 +175,13 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
             switch (language)
             {
                 case AnalysisLanguage.Javascript:
-                    rules = EslintRulesProvider.JavaScript_SonarWay;
-                    rules = EslintRulesProvider.JavaScript_SonarWay_Recommended;
+                    rules = rulesProvider.JavaScript_SonarWay;
+                    rules = rulesProvider.JavaScript_SonarWay_Recommended;
                     break;
 
                 case AnalysisLanguage.Typescript:
-                    rules = EslintRulesProvider.TypeScript_SonarWay;
-                    rules = EslintRulesProvider.TypeScript_SonarWay_Recommended;
+                    rules = rulesProvider.TypeScript_SonarWay;
+                    rules = rulesProvider.TypeScript_SonarWay_Recommended;
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(language), $"Unsupported language: {language}");
