@@ -32,25 +32,35 @@ namespace SonarJsConfig
             }
         }
 
-        public static readonly IEnumerable<Rule> JavaScript_SonarWay = GetRulesFromQP("SonarCloud_js_sonar_way.xml");
-        public static readonly IEnumerable<Rule> JavaScript_SonarWay_Recommended = GetRulesFromQP("SonarCloud_js_sonar_way_recommended.xml");
-        public static readonly IEnumerable<Rule> TypeScript_SonarWay = GetRulesFromQP("SonarCloud_ts_sonar_way.xml");
-        public static readonly IEnumerable<Rule> TypeScript_SonarWay_Recommended = GetRulesFromQP("SonarCloud_ts_sonar_way_recommended.xml");
-
-        public static IEnumerable<Rule> GetRulesFromQP(string partialResourceName)
-            => Convert(QualityProfileLoader.GetProfile(partialResourceName));
-
-        public static IEnumerable<Rule> Convert(profile qualityProfile)
+        public EslintRulesProvider(RuleKeyMapper ruleKeyMapper)
         {
-            // TODO - map Sxxx keys to ESLint keys
-            return qualityProfile.rules.Select(ToRule).ToArray();
+            JavaScript_SonarWay = GetRulesFromQP("SonarCloud_js_sonar_way.xml", ruleKeyMapper);
+            JavaScript_SonarWay_Recommended = GetRulesFromQP("SonarCloud_js_sonar_way_recommended.xml", ruleKeyMapper);
+            TypeScript_SonarWay = GetRulesFromQP("SonarCloud_ts_sonar_way.xml", ruleKeyMapper);
+            TypeScript_SonarWay_Recommended = GetRulesFromQP("SonarCloud_ts_sonar_way_recommended.xml", ruleKeyMapper);
         }
 
-        private static Rule ToRule(rule qualityProfileRule)
+        public IEnumerable<Rule> JavaScript_SonarWay { get; }
+        public IEnumerable<Rule> JavaScript_SonarWay_Recommended { get; }
+        public IEnumerable<Rule> TypeScript_SonarWay { get; }
+        public IEnumerable<Rule> TypeScript_SonarWay_Recommended { get; }
+
+        public static IEnumerable<Rule> GetRulesFromQP(string partialResourceName, RuleKeyMapper ruleKeyMapper)
+            => Convert(QualityProfileLoader.GetProfile(partialResourceName), ruleKeyMapper);
+
+        private static IEnumerable<Rule> Convert(profile qualityProfile, RuleKeyMapper ruleKeyMapper)
+        {
+            return qualityProfile.rules
+                .Select(x => ToRule(x, ruleKeyMapper))
+                .Where(x => x.Key != null)
+                .ToArray();
+        }
+
+        private static Rule ToRule(rule qualityProfileRule, RuleKeyMapper ruleKeyMapper)
         {
             return new Rule
             {
-                Key = qualityProfileRule.key,
+                Key = ruleKeyMapper.ToEsLintKey(qualityProfileRule.key) ,
                 Configurations = Array.Empty<string>()
             };
         }

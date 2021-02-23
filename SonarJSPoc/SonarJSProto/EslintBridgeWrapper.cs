@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using SonarJsConfig.Config;
 using SonarJsConfig.ESLint.Data;
+using SonarJSProto.QualityProfiles;
 using SonarLint.VisualStudio.Integration;
 
 namespace SonarJsConfig
@@ -47,7 +48,7 @@ namespace SonarJsConfig
         private readonly SonarJSDownloader downloader;
 
         private EslintBridgeProcess serverProcess;
-
+        
         private int port;
 
         private readonly HttpClient httpClient;
@@ -59,6 +60,8 @@ namespace SonarJsConfig
             downloader = new SonarJSDownloader();
             httpClient = new HttpClient();
         }
+
+        public RuleKeyMapper RuleKeyMapper { get; private set; }
 
         public async Task<bool> Start()
         {
@@ -153,11 +156,14 @@ namespace SonarJsConfig
 
             try
             {
-                var scriptFilePath = EnsurePluginDownloaded();
+                var jarRootDirectory = EnsureSonarJSDownloaded();
+                var scriptFilePath = FindServerScriptFile(jarRootDirectory);
                 if (scriptFilePath == null)
                 {
                     return false;
                 }
+
+                RuleKeyMapper = CreateKeyMapper(jarRootDirectory);
 
                 serverProcess = new EslintBridgeProcess(logger, scriptFilePath, 0);
                 this.port = await serverProcess.StartAsync();
@@ -170,11 +176,11 @@ namespace SonarJsConfig
 
             return true;
         }
+        private string EnsureSonarJSDownloaded() =>
+            downloader.Download(DownloadUrl, logger);
 
-        private string EnsurePluginDownloaded()
+        private string FindServerScriptFile(string jarRootDirectory)
         {
-            var jarRootDirectory = EnsureSonarJSDownloaded();
-
             var scriptFilePath = Path.Combine(jarRootDirectory, SonarJSDownloader.EslintBridgeFolderName, "package", "bin", "server");
 
             if (!File.Exists(scriptFilePath))
@@ -186,8 +192,18 @@ namespace SonarJsConfig
             return scriptFilePath;
         }
 
-        private string EnsureSonarJSDownloaded() =>
-            downloader.Download(DownloadUrl, logger);
+        private RuleKeyMapper CreateKeyMapper(string jarRootDirectory)
+        {
+            var rulesDirectory = Path.Combine(jarRootDirectory, SonarJSDownloader.EslintBridgeFolderName, "package", "lib", "rules");
+
+            if (!Directory.Exists(rulesDirectory))
+            {
+                logger.LogError($"eslint-bridge rules directory does not exist: {rulesDirectory}");
+                return null;
+            }
+
+            return RuleKeyMapper.GenerateMappingFromFiles(rulesDirectory, logger);
+        }
 
         private async Task<string> CallNodeServerAsync(string serverEndpoint, object request)
         {
