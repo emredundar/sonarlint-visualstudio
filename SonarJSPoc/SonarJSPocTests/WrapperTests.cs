@@ -35,7 +35,7 @@ namespace SonarJSPocTests
             var configResposne = await wrapper.TSConfigFiles(tsConfigFilePath);
 
             // Analyze
-            var results = await wrapper.AnalyzeJS("", "//TODO\n", ignoreHeaderComments: false);
+            var results = await wrapper.AnalyzeJS("", "//TODO\n", ignoreHeaderComments: false, tsConfigFilePath);
 
             results.Issues.Count().Should().Be(1);
         }
