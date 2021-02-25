@@ -22,8 +22,8 @@ namespace SonarJsConfig
         Task InitLinter(IEnumerable<Rule> rules);
         Task<TSConfigResponse> TSConfigFiles(string configFilePath);
         Task NewTSConfig();
-        Task<AnalysisResponse> AnalyzeJS(string filePath, string fileContent, bool ignoreHeaderComments);
-        Task<AnalysisResponse> AnalyzeTS(string filePath, string fileContent, bool ignoreHeaderComments);
+        Task<AnalysisResponse> AnalyzeJS(string filePath, string fileContent, bool ignoreHeaderComments, string tsConfigFilePath);
+        Task<AnalysisResponse> AnalyzeTS(string filePath, string fileContent, bool ignoreHeaderComments, string tsConfigFilePath);
         RuleKeyMapper RuleKeyMapper { get; }
     }
 
@@ -113,15 +113,15 @@ namespace SonarJsConfig
             await CallNodeServerAsync(Endpoints.InitLinter, request);
         }
 
-        public async Task<AnalysisResponse> AnalyzeJS(string filePath, string fileContent, bool ignoreHeaderComments) =>
-            await Analyze(filePath, fileContent, Endpoints.AnalyzeJs, ignoreHeaderComments);
+        public async Task<AnalysisResponse> AnalyzeJS(string filePath, string fileContent, bool ignoreHeaderComments, string tsConfigFilePath) =>
+            await Analyze(filePath, fileContent, Endpoints.AnalyzeJs, ignoreHeaderComments, tsConfigFilePath);
 
-        public async Task<AnalysisResponse> AnalyzeTS(string filePath, string fileContent, bool ignoreHeaderComments) =>
-            await Analyze(filePath, fileContent, Endpoints.AnalyzeTs, ignoreHeaderComments);
+        public async Task<AnalysisResponse> AnalyzeTS(string filePath, string fileContent, bool ignoreHeaderComments, string tsConfigFilePath) =>
+            await Analyze(filePath, fileContent, Endpoints.AnalyzeTs, ignoreHeaderComments, tsConfigFilePath);
 
-        private async Task<AnalysisResponse> Analyze(string filePath, string fileContent, string endpoint, bool ignoreHeaderComments)
+        private async Task<AnalysisResponse> Analyze(string filePath, string fileContent, string endpoint, bool ignoreHeaderComments, string tsConfigFilePath)
         {
-            var analysisRequest = CreateAnalysisRequest(filePath, fileContent, ignoreHeaderComments);
+            var analysisRequest = CreateAnalysisRequest(filePath, fileContent, ignoreHeaderComments, tsConfigFilePath);
 
             var responseString = await CallNodeServerAsync(endpoint, analysisRequest);
 
@@ -258,7 +258,7 @@ namespace SonarJsConfig
             }
         }
 
-        private AnalysisRequest CreateAnalysisRequest(string filePath, string fileContent, bool ignoreHeaderComments)
+        private AnalysisRequest CreateAnalysisRequest(string filePath, string fileContent, bool ignoreHeaderComments, string tsConfigFilePath)
         {
             // NOTE: the rule keys we pass to the eslint-bridge are not the Sonar "Sxxxx" keys.
             // Instead, there are more user-friendly keys.
@@ -268,8 +268,8 @@ namespace SonarJsConfig
             {
                 FilePath = filePath,
                 FileContent = fileContent,
-                IgnoreHeaderComments = ignoreHeaderComments
-                // TODO TSConfigFilePaths  = ???
+                IgnoreHeaderComments = ignoreHeaderComments,
+                TSConfigFilePaths = new string[] { tsConfigFilePath } // TODO - why does eslintbridge accept an array of configs?
             };
 
             return eslintRequest;

@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Dynamic;
 using System.IO;
 using System.Linq;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using SonarJsConfig.ESLint.Data;
 using SonarJSProto.QualityProfiles;
 
@@ -58,11 +61,30 @@ namespace SonarJsConfig
 
         private static Rule ToRule(rule qualityProfileRule, RuleKeyMapper ruleKeyMapper)
         {
+            var esLintKey = ruleKeyMapper.ToEsLintKey(qualityProfileRule.key);
+            object[] configurations = Array.Empty<string>();
+            if ((qualityProfileRule.parameters?.Length ?? 0) > 0)
+            {
+                configurations = qualityProfileRule.parameters.Select(ToJObject).ToArray();
+
+                var paramsAsText = string.Join(", ", qualityProfileRule.parameters.Select(x => $"{x.key}={x.value}"));
+                System.Diagnostics.Debug.WriteLine($"Parameterised rule: [{qualityProfileRule.key}, {esLintKey}] Params: {paramsAsText}");
+            }
+
             return new Rule
             {
                 Key = ruleKeyMapper.ToEsLintKey(qualityProfileRule.key) ,
-                Configurations = Array.Empty<string>()
+                Configurations = configurations
             };
         }
+
+        private static JObject ToJObject(parameter ruleParam)
+        {
+            // TODO - check format is correctly (don't think it is)
+            var jObject = new JObject();
+            jObject.Add(ruleParam.key, new JValue(ruleParam.value));
+            return jObject;
+        }
+
     }
 }

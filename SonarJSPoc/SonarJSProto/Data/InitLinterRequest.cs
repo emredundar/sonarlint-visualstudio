@@ -39,6 +39,6 @@ namespace SonarJsConfig.ESLint.Data
         [JsonProperty("key")]
         public string Key { get; set; }
         [JsonProperty("configurations")]
-        public string[] Configurations { get; set; }
+        public object[] Configurations { get; set; }
     }
 }

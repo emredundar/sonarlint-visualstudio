@@ -116,11 +116,11 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
             var ignoreHeaderComments = false;
             if (language == AnalysisLanguage.Typescript)
             {
-                response = await eslintBridge.AnalyzeTS(path, fileContent, ignoreHeaderComments);
+                response = await eslintBridge.AnalyzeTS(path, fileContent, ignoreHeaderComments, configFilePath);
             }
             else
             {
-                response = await eslintBridge.AnalyzeJS(path, fileContent, ignoreHeaderComments);
+                response = await eslintBridge.AnalyzeJS(path, fileContent, ignoreHeaderComments, configFilePath);
             }
 
             if (!response.Issues.Any())
@@ -160,8 +160,8 @@ namespace SonarLint.VisualStudio.Integration.Vsix.TSAnalysis
 
             lastAnalyzedLanguage = language;
 
-//            var rules = GetRulesFromQP(language);
-            var rules = GetRules(language);
+            var rules = GetRulesFromQP(language);
+            //var rules = GetRules(language);
 
             await eslintBridge.NewTSConfig();
             await eslintBridge.InitLinter(rules);
